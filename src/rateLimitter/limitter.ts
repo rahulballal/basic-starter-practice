@@ -1,4 +1,7 @@
-export function rateLimiter(timeFactorInMs: number = 10, resetFactorInMs:number = 50) {
+export function rateLimiterTimeBoundOnly(
+  timeFactorInMs: number = 10,
+  resetFactorInMs: number = 50,
+) {
   const limitMap = new Map<number, Date>()
 
   const peekMap = () => {
@@ -30,5 +33,45 @@ export function rateLimiter(timeFactorInMs: number = 10, resetFactorInMs:number 
   return {
     isAllowed,
     peekMap,
+  }
+}
+
+export function rateLimiterReqPerSecond(maxRequestPerSecond: number = 10, resetDurationInMS: number = 1000) {
+  const buckets = new Map<string, { count: number; expiry: number }>()
+
+  const getFreshLimitingData = () => {
+    const current = new Date()
+    const expiry = new Date()
+    expiry.setSeconds(current.getSeconds() + 1)
+    return { expiry: expiry.getTime(), count: 1 }
+  }
+  const isAllowed = (customerId: string): boolean => {
+    const limitingData = buckets.get(customerId)
+    if (limitingData) {
+      const { count, expiry } = limitingData
+      const now = new Date().getTime()
+      if (now > expiry) {
+        if((now - expiry) > resetDurationInMS) {
+          buckets.set(customerId, getFreshLimitingData())
+          return true
+        }
+        if (count <= maxRequestPerSecond) {
+          buckets.set(customerId, getFreshLimitingData())
+          return true
+        }
+        return false
+      } else {
+        return count <= maxRequestPerSecond;
+
+      }
+    } else {
+      buckets.set(customerId, getFreshLimitingData())
+      return true
+    }
+  }
+
+  return {
+    getBucket: () => buckets,
+    isAllowed
   }
 }
