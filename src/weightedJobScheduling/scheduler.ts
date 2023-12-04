@@ -27,28 +27,18 @@ export function sortByEndTimeAsc(jobA: Job, jobB: Job): number {
   return 0
 }
 
-export function getIdOfJob(
-  jobs: Pick<Job, 'id' | 'profit' | 'end'>[],
-  startTime: number,
-): number {
-  // using binary search to look for the index of the max endtime that <= target
-  let left = 0
-  let right = jobs.length
-  let mid = 0
-
-  while (left < right) {
-    mid = Math.floor(left + (right - left) / 2)
-    if (jobs[mid].end > startTime) {
-      right = mid
+export function findIndexOfJobEndingClosestToGiven(left:number, right:number, target: number, sortedJobs: Job[]): number {
+  let result = -1
+  while (left <= right) {
+    const mid = Math.floor((left + right)/2)
+    if (sortedJobs[mid].end > target) {
+      right = mid - 1
     } else {
-      left = mid + 1
+      left = mid +1
+      result = mid
     }
   }
-
-  // the left === right which is the minimum value that is larger than target
-  // then we choose the previous one which should be max value that is <= target
-
-  return left - 1
+  return result
 }
 
 export function scheduler(
@@ -59,23 +49,17 @@ export function scheduler(
   const jobListSortedByEndTimes = toJobList(startTimes, endTimes, profits).sort(
     sortByEndTimeAsc,
   )
-  const jobs: Pick<Job, 'id' | 'profit' | 'end'>[] = [
-    { profit: 0, id: 'X', end: 0 },
-  ]
 
-  let currProfit = 0
-  for (const job of jobListSortedByEndTimes) {
-    const index = getIdOfJob(jobs, job.start)
-    currProfit = jobs[index].profit + job.profit
-    const previousProfit = jobs[jobs.length - 1].profit
-    if (currProfit > previousProfit) {
-      jobs.push({
-        profit: currProfit,
-        id: jobs[index].id,
-        end: jobs[index].end,
-      })
-    }
+  let jobProfit = 0
+  const memo: number[] = []
+  for (let index = 0; index < jobListSortedByEndTimes.length; index++) {
+    const previousJobIndex = findIndexOfJobEndingClosestToGiven(0, index, jobListSortedByEndTimes[index].start, jobListSortedByEndTimes)
+    memo[index] = Math.max(
+        (memo[index - 1] || 0),
+        jobListSortedByEndTimes[index].profit + (memo[previousJobIndex] || 0)
+    )
+    jobProfit = Math.max(jobProfit, memo[index])
   }
-  const last = jobs[jobs.length - 1]
-  return { profit: last.profit, selectedJobs: jobs.map((j) => j.id) }
+
+  return jobProfit
 }
